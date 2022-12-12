@@ -1,5 +1,8 @@
 pipeline {
     agent any
+    environment {
+        DOCKER_IMAGE_NAME="backel/train-schedule"
+    }
     stages {
         stage('Build') {
             steps {
@@ -14,8 +17,9 @@ pipeline {
             }
             steps {
                 script {
-                    app = docker.build("backel/train-schedule")
+                    app = docker.build(DOCKER_IMAGE_NAME)
                     app.inside {
+                        //sh 'echo Hello, World!'
                         sh 'echo $(curl localhost:3000)'
                     }
                 }
@@ -34,45 +38,33 @@ pipeline {
                 }
             }
         }
-        stage('DeployToStaging') {
+  	stage('DeployToProduction') {
             when {
                 branch 'master'
             }
             steps {
-               withCredentials([usernamePassword(credentialsId: 'server_login', usernameVariable: 'USERNAME', passwordVariable: 'USERPASS')]) {
-                    script {
-                        sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$staging_ip \"docker pull backel/train-schedule:${env.BUILD_NUMBER}\""
-                        try {
-                            sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$staging_ip \"docker stop train-schedule\""
-                            sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$staging_ip \"docker rm train-schedule\""
-                        } catch (err) {
-                            echo: 'caught error: $err'
-                        }
-                        sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$staging_ip \"docker run --restart always --name train-schedule -p 3000:3000 -d backel/train-schedule:${env.BUILD_NUMBER}\""
+                script {
+                    withKubeConfig([credentialsId: 'kubeconfig_file', serverUrl: 'https://192.168.0.108:6443']) {
+                        sh "sed -i 's|DOCKER_IMAGE_NAME|${DOCKER_IMAGE_NAME}|' train-schedule-kube.yml"
+                        sh """sed -i "s|BUILD_NUMBER|${env.BUILD_NUMBER}|" train-schedule-kube.yml"""
+                        sh "kubectl apply -f train-schedule-kube.yml"
                     }
                 }
             }
         }
-        stage('DeployToProduction') {
-            when {
-                branch 'master'
-            }
-            steps {
-                input 'Deploy to Production?'
-                milestone(1)
-                withCredentials([usernamePassword(credentialsId: 'server_login', usernameVariable: 'USERNAME', passwordVariable: 'USERPASS')]) {
-                    script {
-                        sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$prod_ip \"docker pull backel/train-schedule:${env.BUILD_NUMBER}\""
-                        try {
-                            sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$prod_ip \"docker stop train-schedule\""
-                            sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$prod_ip \"docker rm train-schedule\""
-                        } catch (err) {
-                            echo: 'caught error: $err'
-                        }
-                        sh "sshpass -p '$USERPASS' -v ssh -o StrictHostKeyChecking=no $USERNAME@$prod_ip \"docker run --restart always --name train-schedule -p 3000:3000 -d backel/train-schedule:${env.BUILD_NUMBER}\""
-                    }
-                }
-            }
-        }
+        //stage('DeployToProduction') {
+        //    when {
+        //        branch 'master'
+        //    }
+        //    steps {
+        //        input 'Deploy to Production?'
+        //        milestone(1)
+        //        kubernetesDeploy(
+        //            kubeconfigId: 'kubeconfig',
+        //            configs: 'train-schedule-kube.yml',
+        //            enableConfigSubstitution: true
+        //        )
+        //    }
+        //}
     }
 }
