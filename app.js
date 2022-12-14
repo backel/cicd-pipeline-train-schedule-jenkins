@@ -6,6 +6,8 @@ var logger = require('morgan');
 
 var indexRouter = require('./routes/index');
 var trainsRouter = require('./routes/trains');
+var metricsRouter = require('./routes/metrics');
+const Prometheus = require('prom-client')
 
 var app = express();
 
@@ -13,19 +15,32 @@ var app = express();
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
 
+const httpRequestDurationMicroseconds = new Prometheus.Histogram({
+  name: 'http_request_duration_ms',
+  help: 'Duration of HTTP requests in ms',
+  labelNames: ['method', 'route', 'code'],
+  buckets: [0.10, 5, 15, 50, 100, 200, 300, 400, 500]
+})
+
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.use((req, res, next) => {
+  res.locals.startEpoch = Date.now()
+  next()
+})
+
 app.use('/', indexRouter);
 app.use('/trains', trainsRouter);
+app.use('/metrics', metricsRouter);
 
 // catch 404 and forward to error handler
-app.use(function(req, res, next) {
+/*app.use(function(req, res, next) {
   next(createError(404));
-});
+});*/
 
 // error handler
 app.use(function(err, req, res, next) {
@@ -36,6 +51,16 @@ app.use(function(err, req, res, next) {
   // render the error page
   res.status(err.status || 500);
   res.render('error');
+  next()
 });
+
+app.use((req, res, next) => {
+  const responseTimeInMs = Date.now() - res.locals.startEpoch
+  httpRequestDurationMicroseconds
+    .labels(req.method, req.originalUrl, res.statusCode)
+    .observe(responseTimeInMs)
+
+  next()
+})
 
 module.exports = app;
