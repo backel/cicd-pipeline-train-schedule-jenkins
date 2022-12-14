@@ -9,6 +9,7 @@ var db = low(adapter)
 /* GET trains listing. */
 router.get('/', function(req, res, next) {
   res.send(db.get('trains').sortBy('name').value());
+  next()
 });
 
 module.exports = router;
