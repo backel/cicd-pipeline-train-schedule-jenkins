@@ -42,6 +42,15 @@ app.use('/', indexRouter);
 app.use('/trains', trainsRouter);
 app.use('/metrics', metricsRouter);
 
+//this endpoint performs cpu-intensive calculations
+app.get('/generate-cpu-load', function(req, res, next) {
+  var val = 0.0001
+  for (i = 0; i < 1000000; i++) {
+    val += Math.sqrt(val);
+  }
+  res.status(200).send('Doing a bunch of calculations!')
+});
+
 // catch 404 and forward to error handler
 /*app.use(function(req, res, next) {
   next(createError(404));
