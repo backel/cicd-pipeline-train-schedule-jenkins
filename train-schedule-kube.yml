@@ -50,7 +50,7 @@ spec:
 
 ---
 
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: train-schedule-hpa
@@ -66,4 +66,7 @@ spec:
     - type: Resource
       resource:
         name: cpu
-        targetAverageUtilization: 50
+        target:
+          type: Utilization
+          averageUtilization: 50
+
