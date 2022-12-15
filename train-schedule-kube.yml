@@ -37,3 +37,10 @@ spec:
           image: DOCKER_IMAGE_NAME:BUILD_NUMBER
           ports:
             - containerPort: 3000
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            timeoutSeconds: 1
+            periodSeconds: 10

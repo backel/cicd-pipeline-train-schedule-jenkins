@@ -9,6 +9,8 @@ var trainsRouter = require('./routes/trains');
 var metricsRouter = require('./routes/metrics');
 const Prometheus = require('prom-client')
 
+var broken = false;
+
 var app = express();
 
 // view engine setup
@@ -29,6 +31,9 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use((req, res, next) => {
+  res.locals = {
+    broken: broken
+  };
   res.locals.startEpoch = Date.now()
   next()
 })
@@ -41,6 +46,12 @@ app.use('/metrics', metricsRouter);
 /*app.use(function(req, res, next) {
   next(createError(404));
 });*/
+
+//this endpoint triggers the app to simulate entering an unhealthy state by causing it to return 5XX errors.
+app.get('/break', function(req, res, next) {
+	broken = true;
+	res.status(200).send('The app is now broken!')
+});
 
 // error handler
 app.use(function(err, req, res, next) {
@@ -59,7 +70,7 @@ app.use((req, res, next) => {
   httpRequestDurationMicroseconds
     .labels(req.method, req.originalUrl, res.statusCode)
     .observe(responseTimeInMs)
-
+  
   next()
 })
 
