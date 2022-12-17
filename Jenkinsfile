@@ -2,6 +2,7 @@ pipeline {
     agent any
     environment {
         DOCKER_IMAGE_NAME="backel/train-schedule"
+        CANARY_REPLICAS = 0
     }
     stages {
         stage('Build') {
@@ -57,29 +58,40 @@ pipeline {
             }
         }
         stage('Restore .yml file from canary deployment') {
+            when {
+                branch 'master'
+            }
             steps {
                 script {
                     sh "git restore train-schedule-kube-canary.yml"
                 }
             }
         }
-  	stage('Deploy To Production') {
+        stage('Smoke Test') {
             when {
                 branch 'master'
             }
-            environment {
-                CANARY_REPLICAS = 0
+            steps {
+                script {
+                    sleep (time: 5)
+                    def response = httpRequest (
+                        url: "http://$KUBE_MASTER_IP:30010/",
+                        timeout: 30
+                    )
+                    if (response.status != 200) {
+                        error("Smoke test against canary deployment failed.")
+                    }
+                }
+            }
+        }
+        stage('Deploy To Production') {
+            when {
+                branch 'master'
             }
             steps {
-                input 'Deploy to Production?'
                 milestone(1)
                 script {
                     withKubeConfig([credentialsId: 'kubeconfig_file', serverUrl: 'https://192.168.0.108:6443']) {
-                        sh "sed -i 's|CANARY_REPLICAS|${CANARY_REPLICAS}|' train-schedule-kube-canary.yml"
-                        sh "sed -i 's|DOCKER_IMAGE_NAME|${DOCKER_IMAGE_NAME}|' train-schedule-kube-canary.yml"
-                        sh """sed -i "s|BUILD_NUMBER|${env.BUILD_NUMBER}|" train-schedule-kube-canary.yml"""
-                        sh "kubectl apply -f train-schedule-kube-canary.yml"
-
                         sh "sed -i 's|DOCKER_IMAGE_NAME|${DOCKER_IMAGE_NAME}|' train-schedule-kube.yml"
                         sh """sed -i "s|BUILD_NUMBER|${env.BUILD_NUMBER}|" train-schedule-kube.yml"""
                         sh "kubectl apply -f train-schedule-kube.yml"
@@ -87,19 +99,15 @@ pipeline {
                 }
             }
         }
-        //stage('DeployToProduction') {
-        //    when {
-        //        branch 'master'
-        //    }
-        //    steps {
-        //        input 'Deploy to Production?'
-        //        milestone(1)
-        //        kubernetesDeploy(
-        //            kubeconfigId: 'kubeconfig',
-        //            configs: 'train-schedule-kube.yml',
-        //            enableConfigSubstitution: true
-        //        )
-        //    }
-        //}
+    }
+    post {
+        cleanup {
+            withKubeConfig([credentialsId: 'kubeconfig_file', serverUrl: 'https://192.168.0.108:6443']) {
+                sh "sed -i 's|CANARY_REPLICAS|${CANARY_REPLICAS}|' train-schedule-kube-canary.yml"
+                sh "sed -i 's|DOCKER_IMAGE_NAME|${DOCKER_IMAGE_NAME}|' train-schedule-kube-canary.yml"
+                sh """sed -i "s|BUILD_NUMBER|${env.BUILD_NUMBER}|" train-schedule-kube-canary.yml"""
+                sh "kubectl apply -f train-schedule-kube-canary.yml"
+            }
+        }
     }
 }
