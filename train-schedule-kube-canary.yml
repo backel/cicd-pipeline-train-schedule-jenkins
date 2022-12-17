@@ -1,38 +1,39 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: train-schedule-service
+  name: train-schedule-service-canary
   annotations:
     prometheus.io/scrape: 'true'
 spec:
   type: NodePort
   selector:
     app: train-schedule
+    track: canary
   ports:
     - protocol: TCP
       port: 3000
       targetPort: 3000
-      nodePort: 30000
+      nodePort: 30010
 
 ---
 
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: train-schedule-deployment
+  name: train-schedule-deployment-canary
   labels:
     app: train-schedule
 spec:
-  replicas: 2
+  replicas: CANARY_REPLICAS
   selector:
     matchLabels:
       app: train-schedule
-      track: stable
+      track: canary
   template:
     metadata:
       labels:
         app: train-schedule
-        track: stable
+        track: canary
     spec:
       containers:
         - name: train-schedule
@@ -49,26 +50,4 @@ spec:
           resources:
             requests:
               cpu: 200m
-
----
-
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: train-schedule-hpa
-  namespace: default
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: train-schedule-deployment
-  minReplicas: 1
-  maxReplicas: 4
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 50
 
