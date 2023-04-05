@@ -48,7 +48,7 @@ pipeline {
             }
             steps {
                 script {
-                    withKubeConfig([credentialsId: 'kubeconfig_file', serverUrl: 'https://192.168.0.108:6443']) {
+                    withKubeConfig([credentialsId: 'kubeconfig']) {
                         sh "sed -i 's|CANARY_REPLICAS|${CANARY_REPLICAS}|' train-schedule-kube-canary.yml"
                         sh "sed -i 's|DOCKER_IMAGE_NAME|${DOCKER_IMAGE_NAME}|' train-schedule-kube-canary.yml"
                         sh """sed -i "s|BUILD_NUMBER|${env.BUILD_NUMBER}|" train-schedule-kube-canary.yml"""
@@ -91,7 +91,7 @@ pipeline {
             steps {
                 milestone(1)
                 script {
-                    withKubeConfig([credentialsId: 'kubeconfig_file', serverUrl: 'https://192.168.0.108:6443']) {
+                    withKubeConfig([credentialsId: 'kubeconfig']) {
                         sh "sed -i 's|DOCKER_IMAGE_NAME|${DOCKER_IMAGE_NAME}|' train-schedule-kube.yml"
                         sh """sed -i "s|BUILD_NUMBER|${env.BUILD_NUMBER}|" train-schedule-kube.yml"""
                         sh "kubectl apply -f train-schedule-kube.yml"
@@ -102,7 +102,7 @@ pipeline {
     }
     post {
         cleanup {
-            withKubeConfig([credentialsId: 'kubeconfig_file', serverUrl: 'https://192.168.0.108:6443']) {
+            withKubeConfig([credentialsId: 'kubeconfig']) {
                 sh "sed -i 's|CANARY_REPLICAS|${CANARY_REPLICAS}|' train-schedule-kube-canary.yml"
                 sh "sed -i 's|DOCKER_IMAGE_NAME|${DOCKER_IMAGE_NAME}|' train-schedule-kube-canary.yml"
                 sh """sed -i "s|BUILD_NUMBER|${env.BUILD_NUMBER}|" train-schedule-kube-canary.yml"""
